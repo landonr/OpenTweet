@@ -17,8 +17,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Build
-        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetTests build-for-testing
+        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetTests build-for-testing -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=17'
       - name: Test
-        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetTests -destination 'platform=iOS Simulator,name=Any iOS Device' test
+        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetTests -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=17'
       - name: Test UI
-        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetUITests -destination 'platform=iOS Simulator,name=Any iOS Device' test
+        run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetUITests -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=17'

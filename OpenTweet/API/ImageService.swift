@@ -29,7 +29,7 @@ class ImageService {
 
     private static func getImageFromCache(url: URL) async throws -> UIImage? {
         return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: .background).async {
                 do {
                     let directory = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
                     let data = try Data(contentsOf: directory.appendingPathComponent(url.lastPathComponent))
@@ -45,7 +45,7 @@ class ImageService {
 
     static func downloadImage(url: URL) async throws -> UIImage? {
         return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: .background).async {
                 do {
                     print("downloading image \(url)")
                     let data = try Data(contentsOf: url)

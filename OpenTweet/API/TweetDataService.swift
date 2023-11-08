@@ -29,7 +29,7 @@ class TweetDataService: TweetDataServiceable {
         return try await withCheckedThrowingContinuation { continuation in
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: .background).async {
                 do {
                     let timeline = try decoder.decode(Timeline.self, from: data)
                     DispatchQueue.main.async {

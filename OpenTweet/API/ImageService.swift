@@ -13,8 +13,13 @@ class ImageService {
     private let operationQueue = OperationQueue()
     private var activeDownloads: [URL: BlockOperation] = [:]
     private var waitingOperations: [URL: [ImageClosure]] = [:]
+    private var cachedImages = NSCache<NSString, UIImage>()
 
-    private func saveImage(image: UIImage, url: URL) {
+    private init() {
+        cachedImages.countLimit = 10
+    }
+
+    func saveImage(image: UIImage, url: URL) {
         DispatchQueue.global(qos: .background).async {
             guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
                 return
@@ -39,6 +44,13 @@ class ImageService {
                 let data = try Data(contentsOf: directory.appendingPathComponent(url.lastPathComponent))
                 let image = UIImage(data: data)
                 self?.releaseImages(url: url, image: image)
+                if let image = image {
+                    DispatchQueue.main.async { [weak self] in
+                         let urlString = NSString(string: url.absoluteString)
+
+                        self?.cachedImages.setObject(image, forKey: urlString)
+                    }
+                }
                 completion(image)
             } catch {
                 completion(nil)
@@ -62,15 +74,18 @@ class ImageService {
     }
 
     private func releaseImages(url: URL, image: UIImage?) {
-        print("releasing \((waitingOperations[url] ?? []).count) images in queue for \(url)")
-        for imageClosure in waitingOperations[url] ?? [] {
-            imageClosure(image)
+        DispatchQueue.main.async { [weak self] in
+            print("releasing \((self?.waitingOperations[url] ?? []).count) images in queue for \(url)")
+            self?.waitingOperations[url]?.forEach { $0(image) }
+            self?.waitingOperations[url]?.removeAll()
+            self?.activeDownloads.removeValue(forKey: url)
         }
-        activeDownloads.removeValue(forKey: url)
-        waitingOperations.removeValue(forKey: url)
     }
 
     func getImage(url: URL) async throws -> UIImage? {
+        if let image = cachedImages.object(forKey: NSString(string: url.absoluteString)) {
+            return image
+        }
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async { [weak self] in
                 do {
@@ -80,7 +95,7 @@ class ImageService {
                 } catch {
                     continuation.resume(throwing: error)
                 }
-                }
+            }
         }
     }
 

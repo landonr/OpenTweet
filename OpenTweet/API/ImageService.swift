@@ -8,8 +8,14 @@
 import SwiftUI
 
 class ImageService {
-    private static func saveImage(image: UIImage, url: URL) {
-        DispatchQueue.global(qos: .userInitiated).async {
+    static let shared = ImageService()
+    typealias ImageClosure = (UIImage?) -> Void
+    private let operationQueue = OperationQueue()
+    private var activeDownloads: [URL: BlockOperation] = [:]
+    private var waitingOperations: [URL: [ImageClosure]] = [:]
+
+    private func saveImage(image: UIImage, url: URL) {
+        DispatchQueue.global(qos: .background).async {
             guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
                 return
             }
@@ -19,54 +25,86 @@ class ImageService {
             do {
                 try data.write(to: directory.appendingPathComponent(url.lastPathComponent)!)
                 print("saved image to cache")
-                return
             } catch {
                 print(error.localizedDescription)
-                return
             }
         }
     }
 
-    private static func getImageFromCache(url: URL) async throws -> UIImage? {
+    private func getImageFromCache(url: URL, completion: @escaping ImageClosure) {
+        print("getting image from cache \(url)")
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            do {
+                let directory = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+                let data = try Data(contentsOf: directory.appendingPathComponent(url.lastPathComponent))
+                let image = UIImage(data: data)
+                self?.releaseImages(url: url, image: image)
+                completion(image)
+            } catch {
+                completion(nil)
+            }
+        }
+    }
+
+    func downloadImage(url: URL, completion: @escaping ImageClosure) {
+        print("downloading image \(url)")
+        do {
+            let data = try Data(contentsOf: url)
+            let image = UIImage(data: data)
+            if let image = image {
+                saveImage(image: image, url: url)
+            }
+            releaseImages(url: url, image: image)
+            completion(image)
+        } catch {
+            completion(nil)
+        }
+    }
+
+    private func releaseImages(url: URL, image: UIImage?) {
+        print("releasing \((waitingOperations[url] ?? []).count) images in queue for \(url)")
+        for imageClosure in waitingOperations[url] ?? [] {
+            imageClosure(image)
+        }
+        activeDownloads.removeValue(forKey: url)
+        waitingOperations.removeValue(forKey: url)
+    }
+
+    func getImage(url: URL) async throws -> UIImage? {
         return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .background).async {
+            DispatchQueue.main.async { [weak self] in
                 do {
-                    let directory = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-                    let data = try Data(contentsOf: directory.appendingPathComponent(url.lastPathComponent))
-                    DispatchQueue.main.async {
-                        continuation.resume(with: .success(UIImage(data: data)))
+                    try self?.getImage(url: url) { image in
+                        continuation.resume(returning: image)
                     }
                 } catch {
                     continuation.resume(throwing: error)
                 }
-            }
+                }
         }
     }
 
-    static func downloadImage(url: URL) async throws -> UIImage? {
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .background).async {
-                do {
-                    print("downloading image \(url)")
-                    let data = try Data(contentsOf: url)
-                    let image = UIImage(data: data)
-                    if let image = image {
-                        saveImage(image: image, url: url)
+    func getImage(url: URL, completion: @escaping ImageClosure) throws {
+        if let _ = activeDownloads[url] {
+            if waitingOperations[url] != nil {
+                waitingOperations[url]?.append(completion)
+            } else {
+                waitingOperations[url] = [completion]
+            }
+        } else {
+            let downloadOperation = BlockOperation {
+                self.getImageFromCache(url: url) { image in
+                    guard let image = image else {
+                        self.downloadImage(url: url, completion: completion)
+                        return
                     }
-                    DispatchQueue.main.async {
-                        continuation.resume(with: .success(image))
-                    }
-                } catch {
-                    continuation.resume(throwing: error)
+                    completion(image)
                 }
             }
+            if activeDownloads[url] == nil {
+                activeDownloads[url] = downloadOperation
+                operationQueue.addOperation(downloadOperation)
+            }
         }
-    }
-
-    static func getImage(url: URL) async throws -> UIImage? {
-        if let image = try await getImageFromCache(url: url) {
-            return image
-        }
-        return try await downloadImage(url: url)
     }
 }

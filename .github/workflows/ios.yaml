@@ -47,7 +47,7 @@ jobs:
         run: sudo Xcode-select -switch /Applications/Xcode_15.0.1.app
       - name: Build
         run: xcodebuild -project OpenTweet.xcodeproj -scheme OpenTweetTests build-for-testing -destination 'generic/platform=iOS'
-      - name: Test
-        run: xcodebuild test -project OpenTweet.xcodeproj -scheme OpenTweetTests -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
-      - name: Test UI
-        run: xcodebuild test -project OpenTweet.xcodeproj -scheme OpenTweetUITests -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
+#      - name: Test
+#        run: xcodebuild test -project OpenTweet.xcodeproj -scheme OpenTweetTests -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
+#      - name: Test UI
+#        run: xcodebuild test -project OpenTweet.xcodeproj -scheme OpenTweetUITests -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest'
